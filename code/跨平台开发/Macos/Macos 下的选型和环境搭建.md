@@ -224,5 +224,55 @@ networks:
 #### 启动MySQL 和 SQL Server 容器：
 > docker compose up -d
 
+#### 拉取和启动遇到的问题
+```
+feng@nanfengdeMacBook-Pro docker compose % docker compose up -d
+WARN[0000] /users/feng/Documents/Code/demo/docker compose/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+[+] up 19/21
+ ✔ Image m... Pulled                                                    177.8s
+[+] up 19/21. Pulled                                                    416.4s
+ ✔ Image m... Pulled                                                    177.8s
+[+] up 21/21. Pulled                                                    416.4s
+ ✔ Image m... Pulled                                                    177.8s
+ ✔ Image m... Pulled                                                    416.4s ✔ Network... Created                                                   0.0sed ✔ Contain... Started                                                   0.5se  ✔ Contain... Started                                                   0.5sed ! sqlserver  The requested image's platform (linux/amd64) does not match the detected host platform (linux/arm64/v8) and no specific platform was requested 0.0s
+feng@nanfen
+```
+这里的警告（Warning）和最后那个 `!` 错误是由于你的 **MacBook Pro 是 M 系列芯片（Apple Silicon）** 导致的。
 
+### 1. 核心问题：平台不匹配 (Platform Mismatch)
 
+错误提示 `linux/amd64` 不匹配 `linux/arm64/v8`。 这是因为你的电脑是 **ARM 架构**，而你拉取的 `sqlserver` 镜像是为 **Intel/AMD 架构**设计的。
+#### 修改yml文件来解决
+``` yaml
+services:
+  mysql:
+    image: mysql:8
+    container_name: mysql-dev
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: abc,123  # 设置 MySQL root 用户的密码
+    ports:
+      - "3306:3306"                     # 映射容器的3306端口到宿主机
+    networks:
+      - db-network
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64 # <--- 加上这一行
+    container_name: sqlserver-dev
+    restart: always
+    environment:
+      SA_PASSWORD: "abc,123"  # 设置 SQL Server 的系统管理员密码
+      ACCEPT_EULA: "Y"                    # 同意 SQL Server 的 EULA
+    ports:
+      - "1433:1433"                       # 映射容器的1433端口到宿主机
+    networks:
+      - db-network
+
+networks:
+  db-network:
+    driver: bridge
+```
+
+重新启动
+> docker compose up -d
