@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "跨平台开发/Macos/Macos 下的选型和环境搭建.md",
+                "file": "DevOps/Docker.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Macos 下的选型和环境搭建"
+              "title": "Docker"
             }
           }
         ]
@@ -183,10 +183,14 @@
       "bases:新建数据库": false
     }
   },
-  "active": "98d53fd4ccafafe3",
+  "active": "7b99aae2ea266b3c",
   "lastOpenFiles": [
-    "欢迎.md",
+    "图片",
+    "图片/docker.png",
     "跨平台开发/Macos/Macos 下的选型和环境搭建.md",
+    "DevOps/Docker.md",
+    "DevOps",
+    "欢迎.md",
     "跨平台开发/Macos",
     "跨平台开发"
   ]
