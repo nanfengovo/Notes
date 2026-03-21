@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "DevOps/Docker.md",
+                "file": "跨平台开发/Macos/纯净环境搭建.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Docker"
+              "title": "纯净环境搭建"
             }
           }
         ]
@@ -185,10 +185,12 @@
   },
   "active": "7b99aae2ea266b3c",
   "lastOpenFiles": [
+    "图片/DevOps架构.png",
+    "跨平台开发/Macos/Macos 下的选型和环境搭建.md",
+    "跨平台开发/Macos/纯净环境搭建.md",
+    "DevOps/Docker.md",
     "图片",
     "图片/docker.png",
-    "跨平台开发/Macos/Macos 下的选型和环境搭建.md",
-    "DevOps/Docker.md",
     "DevOps",
     "欢迎.md",
     "跨平台开发/Macos",
