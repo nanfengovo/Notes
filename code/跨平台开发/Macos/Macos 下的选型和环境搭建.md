@@ -276,3 +276,99 @@ networks:
 
 重新启动
 > docker compose up -d
+
+#### sqlserver密码太简单但是我就想用简单的怎么办
+修改yml文件
+```yaml
+services:
+
+mysql:
+
+image: mysql:8
+
+container_name: mysql-dev
+
+restart: always
+
+environment:
+
+MYSQL_ROOT_PASSWORD: abc,123 # 设置 MySQL root 用户的密码
+
+ports:
+
+- "3306:3306" # 映射容器的3306端口到宿主机
+
+networks:
+
+- db-network
+
+  
+
+sqlserver:
+
+image: mcr.microsoft.com/mssql/server:2022-latest
+
+platform: linux/amd64 # <--- 加上这一行
+
+container_name: sqlserver-dev
+
+restart: always
+
+environment:
+
+SA_PASSWORD: "abc,123" # 设置 SQL Server 的系统管理员密码
+
+MSSQL_ENFORCE_PASSWORD_POLICY: "OFF" # <--- 关键：禁用密码策略
+
+ACCEPT_EULA: "Y" # 同意 SQL Server 的 EULA
+
+ports:
+
+- "1433:1433" # 映射容器的1433端口到宿主机
+
+networks:
+
+- db-network
+
+  
+
+networks:
+
+db-network:
+
+driver: bridge
+```
+停掉服务重新启动
+```
+docker compose down
+docker compose up -d
+```
+### 在Docker中拉取.NET8和NodeJs
+####  拉.NET8 sdk (开发用)
+> docker pull mcr.microsoft.com/dotnet/sdk:8.0
+
+##### 验证拉取的镜像
+> docker run -it mcr.microsoft.com/dotnet/sdk:8.0 dotnet --version
+
+#### 拉取运行时（生产环境）
+> docker pull mcr.microsoft.com/dotnet/aspnet:8.0
+
+#### 进入容器
+> docker run -it mcr.microsoft.com/dotnet/sdk:8.0 /bin/bash
+
+> dotnet new webapi
+
+#### 配置开发容
+```
+docker run -it --name dotnet-dev \
+  -p 5000:5000 \
+  -v ~/Documents/demo:/app \
+  -w /app \
+  mcr.microsoft.com/dotnet/sdk:8.0
+```
+#### 拉NodeJs镜像
+
+
+
+
+
