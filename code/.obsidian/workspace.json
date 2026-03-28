@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "DevOps/C Shrap 复习.md",
+                "file": "DevOps/Dotnet Core.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "C Shrap 复习"
+              "title": "Dotnet Core"
             }
           }
         ],
@@ -198,12 +198,17 @@
       "bases:新建数据库": false
     }
   },
-  "active": "67163689e79c2e96",
+  "active": "7b99aae2ea266b3c",
   "lastOpenFiles": [
+    "图片/vscode-solution-explorer.png",
+    "图片/nuget 插件.png",
+    "图片/csharp 插件.png",
     "跨平台开发/Macos/纯净环境搭建.md",
+    "DevOps/Dotnet Core.md",
     "DevOps/C Shrap 复习.md",
-    "跨平台开发/Macos/Macos 下的选型和环境搭建.md",
     "DevOps/Docker.md",
+    "DevOps/Python.md",
+    "跨平台开发/Macos/Macos 下的选型和环境搭建.md",
     "图片/DevOps架构.png",
     "图片",
     "图片/docker.png",

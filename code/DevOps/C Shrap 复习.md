@@ -65,12 +65,21 @@ dotnet new console -n consoledemo -o consoledemo --use-program-main
 ```yaml
 FROM mcr.microsoft.com/dotnet/sdk:8.0
 
-# 安装 Node.js (ABP CLI 需要 NPM 来处理前端库)
+# 1. 创建用户并安装基础工具 (Root 权限)
+ARG USERNAME=vscode
+RUN groupadd --gid 1000 $USERNAME \
+    && useradd --uid 1000 --gid 1000 -m $USERNAME \
+    && apt-get update \
+    && apt-get install -y sudo curl \
+    && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME
+
+# 2. 安装 Node.js (Root 权限)
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs
 
-# 安装 ABP CLI (你之前可能已经装过了，但写在 Dockerfile 里更稳妥)
-RUN dotnet tool install -g Volo.Abp.Cli
+# 3. 切换用户并安装 ABP (vscode 用户权限)
+USER vscode
+RUN dotnet tool install -g Volo.Abp.Cli --version 8.3.4
 ENV PATH="${PATH}:/home/vscode/.dotnet/tools"
 ```
 **修改后：**
@@ -80,3 +89,4 @@ ENV PATH="${PATH}:/home/vscode/.dotnet/tools"
 2. 输入 **"Dev Containers: Rebuild Container"**。
     
 3. 等待容器重构完成后，NPM 就会永久存在于你的开发环境中了。
+
