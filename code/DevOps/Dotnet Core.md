@@ -244,3 +244,149 @@ WORKDIR /workspaces
 |**DevOps 意义**|确保“开发环境”与“生产环境”一致|确保“团队内所有成员”的开发工具链一致|
 ```
 
+# 准备.gitignore和vscode中调试需要用到的文件
+## .gitignore
+``` json
+# Build output
+
+bin/
+
+obj/
+
+  
+
+# User-specific files
+
+*.user
+
+*.rsuser
+
+*.suo
+
+  
+
+# IDE state
+
+.vs/
+
+!.vscode/launch.json
+
+!.vscode/tasks.json
+
+!.vscode/extensions.json
+
+  
+
+# Test and coverage output
+
+TestResults/
+
+coverage/
+
+*.coverage
+
+*.coveragexml
+
+  
+
+# Logs
+
+*.log
+
+  
+
+# OS files
+
+.DS_Store
+
+Thumbs.db
+```
+## 调试需要的
+### launch.json
+``` json
+{
+
+"version": "0.2.0",
+
+"configurations": [
+
+{
+
+"name": ".NET Launch SecondDemo.API",
+
+"type": "coreclr",
+
+"request": "launch",
+
+"preLaunchTask": "build SecondDemo.API",
+
+"program": "${workspaceFolder}/Demo/SecondDemo.API/bin/Debug/net6.0/SecondDemo.API.dll",
+
+"args": [],
+
+"cwd": "${workspaceFolder}/Demo/SecondDemo.API",
+
+"stopAtEntry": false,
+
+"serverReadyAction": {
+
+"action": "openExternally",
+
+"pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+
+},
+
+"env": {
+
+"ASPNETCORE_ENVIRONMENT": "Development"
+
+},
+
+"envFile": "${workspaceFolder}/Demo/SecondDemo.API/.env",
+
+"launchBrowser": {
+
+"enabled": false
+
+}
+
+}
+
+]
+
+}
+```
+### tasks.json
+```json
+{
+
+"version": "2.0.0",
+
+"tasks": [
+
+{
+
+"label": "build SecondDemo.API",
+
+"type": "process",
+
+"command": "dotnet",
+
+"args": [
+
+"build",
+
+"${workspaceFolder}/Demo/SecondDemo.API/SecondDemo.API.csproj"
+
+],
+
+"problemMatcher": "$msCompile",
+
+"group": "build"
+
+}
+
+]
+
+}
+```
