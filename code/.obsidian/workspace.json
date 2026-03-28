@@ -78,7 +78,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "right": {
     "id": "774dba3dcf885e86",
@@ -197,10 +198,11 @@
   },
   "active": "042cb45a4d353632",
   "lastOpenFiles": [
+    "图片/CsharpExtensions.png",
+    "DevOps/Dotnet Core.md",
     "DevOps/Python.md",
     "跨平台开发/Macos/纯净环境搭建.md",
     "未命名.base",
-    "DevOps/Dotnet Core.md",
     "图片/vscode-solution-explorer.png",
     "图片/nuget 插件.png",
     "图片/csharp 插件.png",
