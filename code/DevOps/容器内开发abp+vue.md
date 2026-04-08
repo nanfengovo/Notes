@@ -114,7 +114,13 @@ JSON
 
 "ms-dotnettools.csdevkit",
 
+"ms-dotnettools.vscode-dotnet-pack",
+
 "ms-dotnettools.csharp",
+
+"source-craft-community.csharp-devkit-extended",
+
+"ms-dotnettools.vscode-dotnet-runtime",
 
 "patcx.vscode-nuget-gallery",
 
@@ -122,7 +128,17 @@ JSON
 
 "anthropic.claude-code",
 
-"vue.volar"
+"vue.volar",
+
+"kreativ-software.csharpextensions",
+
+"ms-ceintl.vscode-language-pack-zh-hans",
+
+"openai.chatgpt",
+
+"anthropic.claude-code",
+
+"fernandoescolar.vscode-solution-explorer"
 
 ],
 
@@ -755,3 +771,4 @@ pnpm-debug.log*
 
 pnpm-error.log*
 ```
+# 安装.net 10适配最新的c#扩展

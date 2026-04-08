@@ -27,16 +27,15 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "DevOps/容器内开发abp+vue.md",
+                "file": "DevOps/C Shrap 复习.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "容器内开发abp+vue"
+              "title": "C Shrap 复习"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -210,22 +209,22 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "0f8119eb607f14a5",
+  "active": "042cb45a4d353632",
   "lastOpenFiles": [
-    "工具/git.md",
+    "跨平台开发/Macos/纯净环境搭建.md",
     "DevOps/容器内开发abp+vue.md",
-    "工具",
     "DevOps/Dotnet Core.md",
+    "DevOps/Docker.md",
+    "DevOps/C Shrap 复习.md",
+    "跨平台开发/Macos/Macos 下的选型和环境搭建.md",
+    "工具/git.md",
+    "工具",
     "图片/CsharpExtensions.png",
     "DevOps/Python.md",
-    "跨平台开发/Macos/纯净环境搭建.md",
     "未命名.base",
     "图片/vscode-solution-explorer.png",
     "图片/nuget 插件.png",
     "图片/csharp 插件.png",
-    "DevOps/C Shrap 复习.md",
-    "DevOps/Docker.md",
-    "跨平台开发/Macos/Macos 下的选型和环境搭建.md",
     "图片/DevOps架构.png",
     "图片",
     "图片/docker.png",
