@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "DevOps/容器内开发abp+vue.md",
+                "file": "Agent/AI Agent框架 选择.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "容器内开发abp+vue"
+              "title": "AI Agent框架 选择"
             }
           },
           {
@@ -170,13 +170,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "DevOps/容器内开发abp+vue.md",
+                "file": "Agent/AI Agent框架 选择.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "容器内开发abp+vue 的大纲"
+              "title": "AI Agent框架 选择 的大纲"
             }
           },
           {
@@ -209,10 +209,14 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "042cb45a4d353632",
+  "active": "7b99aae2ea266b3c",
   "lastOpenFiles": [
-    "跨平台开发/Macos/纯净环境搭建.md",
+    "图片/五大架构范式的差异化竞争.png",
+    "图片/十个Agent框架.png",
     "DevOps/容器内开发abp+vue.md",
+    "Agent/AI Agent框架 选择.md",
+    "Agent",
+    "跨平台开发/Macos/纯净环境搭建.md",
     "DevOps/Dotnet Core.md",
     "DevOps/Docker.md",
     "DevOps/C Shrap 复习.md",
