@@ -69,3 +69,43 @@ services:
     networks:
       - db-network
 ```
+
+## 容器排障速查
+### 结论
+- 排障时优先顺序：先看日志，再确认容器状态，最后检查端口映射和容器内部环境
+- 如果镜像是精简版，进入容器时优先尝试 `/bin/sh`
+- `docker compose` 项目优先用 `docker compose ps` 和 `docker compose logs` 查看服务状态
+
+### 适用场景
+- 容器启动了但服务访问不到
+- 需要确认容器内程序是否正常运行
+- 需要进入容器检查配置、目录或环境变量
+
+### 步骤
+#### 查看日志
+> docker logs 容器名
+> docker logs -f --tail 100 容器名
+
+#### 查看容器状态
+> docker ps
+> docker ps -a
+
+#### 进入容器
+> docker exec -it 容器名 /bin/sh
+> docker exec -it 容器名 /bin/bash
+
+#### 查看详情和端口映射
+> docker inspect 容器名
+> docker port 容器名
+
+#### docker compose 项目排障
+> docker compose ps
+> docker compose logs -f 服务名
+
+### 坑点
+- 容器状态如果是 `Exited`，优先查看日志，不要先盲目重启
+- 不是每个镜像都带 `bash`，失败时换成 `/bin/sh`
+- 宿主机访问不到服务时，除了查应用本身，也要检查是否正确做了 `-p` 端口映射
+
+### 参考/来源
+- `01-inbox/2026-04-10 Docker 容器排障速记.md`

@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Agent/AI Agent框架 选择.md",
+                "file": "DevOps/容器内开发abp+vue.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "AI Agent框架 选择"
+              "title": "容器内开发abp+vue"
             }
           },
           {
@@ -170,13 +170,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "Agent/AI Agent框架 选择.md",
+                "file": "DevOps/容器内开发abp+vue.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "AI Agent框架 选择 的大纲"
+              "title": "容器内开发abp+vue 的大纲"
             }
           },
           {
@@ -209,8 +209,24 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "7b99aae2ea266b3c",
+  "active": "042cb45a4d353632",
   "lastOpenFiles": [
+    "Agent/AI Agent框架 选择.md",
+    "跨平台开发/Macos/Macos 下的选型和环境搭建.md",
+    "跨平台开发/Macos/纯净环境搭建.md",
+    "DevOps/Dotnet Core.md",
+    "DevOps/C Shrap 复习.md",
+    "DevOps/Docker.md",
+    "DevOps/Python.md",
+    "02-log/ingest-log.md",
+    "01-inbox/2026-04-10 Docker 容器排障速记.md",
+    "01-inbox/README.md",
+    "00-schema/AGENTS.md",
+    "00-schema/工作流提示词.md",
+    "02-log/weekly-lint.md",
+    "02-log",
+    "01-inbox",
+    "00-schema",
     "图片/未来.png",
     "图片/选择框架第二步.png",
     "图片/选择框架第一步.png",
@@ -219,20 +235,12 @@
     "图片/PydanticAI.png",
     "图片/OpenAI Agents SDK.png",
     "图片/AgentScope.png",
-    "Agent/AI Agent框架 选择.md",
     "图片/Llama Index.png",
     "图片/CrewAI适合干什么.png",
-    "图片/CrewAI.png",
     "DevOps/容器内开发abp+vue.md",
     "Agent",
-    "跨平台开发/Macos/纯净环境搭建.md",
-    "DevOps/Dotnet Core.md",
-    "DevOps/Docker.md",
-    "DevOps/C Shrap 复习.md",
-    "跨平台开发/Macos/Macos 下的选型和环境搭建.md",
     "工具/git.md",
     "工具",
-    "DevOps/Python.md",
     "未命名.base",
     "图片",
     "DevOps",
