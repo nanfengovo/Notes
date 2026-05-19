@@ -78,7 +78,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "right": {
     "id": "774dba3dcf885e86",
@@ -180,8 +181,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 300
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -195,8 +195,9 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "7b99aae2ea266b3c",
+  "active": "042cb45a4d353632",
   "lastOpenFiles": [
+    "图片/Pasted image 20260519091140.png",
     "图片/Pasted image 20260518214218.png",
     "图片/7、系统设置.png",
     "图片/6、策略管理.png",
@@ -214,7 +215,6 @@
     "量化交易/简单交易复盘系统的设计/信息&选股&复盘&简单交易",
     "量化交易/简单交易复盘系统的设计",
     "理财/券商对比.md",
-    "图片/Pasted image 20260512212823.png",
     "02-log/ingest-log.md",
     "网络/网络知识基础.md",
     "网络",
