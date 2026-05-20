@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "b07ab74eff373421",
+        "id": "dce35d8752a3222e",
         "type": "tabs",
         "children": [
           {
-            "id": "042cb45a4d353632",
+            "id": "cde0aeb7049c69bc",
             "type": "leaf",
             "state": {
               "type": "markdown",
@@ -181,7 +181,8 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 300,
+    "collapsed": true
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -195,21 +196,20 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "042cb45a4d353632",
+  "active": "cde0aeb7049c69bc",
   "lastOpenFiles": [
-    "图片/Pasted image 20260519091140.png",
-    "图片/Pasted image 20260518214218.png",
-    "图片/7、系统设置.png",
-    "图片/6、策略管理.png",
-    "图片/5、统计报表.png",
-    "图片/4、复盘分析.png",
-    "图片/3、交易详情和复盘.png",
-    "图片/2、交易记录.png",
-    "图片/1、仪表盘.png",
-    "图片/Pasted image 20260518164507.png",
-    "图片/Pasted image 20260518150805.png",
-    "量化交易/金融知识/期权.md",
+    "图片/Pasted image 20260520111040.png",
     "量化交易/简单交易复盘系统的设计/信息&选股&复盘&简单交易/简单的复盘和交易记录系统.md",
+    "图片/Pasted image 20260520111140.png",
+    "图片/Pasted image 20260520111125.png",
+    "图片/Pasted image 20260520111117.png",
+    "图片/Pasted image 20260520111105.png",
+    "图片/Pasted image 20260520111054.png",
+    "图片/Pasted image 20260520110628.png",
+    "图片/Pasted image 20260520110641.png",
+    "图片/Pasted image 20260520110651.png",
+    "图片/Pasted image 20260520110616.png",
+    "量化交易/金融知识/期权.md",
     "理财/0511 香港待办事项.md",
     "量化交易/金融知识",
     "量化交易/简单交易复盘系统的设计/信息&选股&复盘&简单交易",
