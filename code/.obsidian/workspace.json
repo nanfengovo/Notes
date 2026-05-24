@@ -181,8 +181,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 300
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -198,6 +197,8 @@
   },
   "active": "cde0aeb7049c69bc",
   "lastOpenFiles": [
+    "图片/Pasted image 20260524133008.png",
+    "图片/Pasted image 20260524132206.png",
     "图片/Pasted image 20260523164152.png",
     "图片/Pasted image 20260523164141.png",
     "图片/Pasted image 20260523164128.png",
@@ -207,8 +208,6 @@
     "图片/Pasted image 20260523163926.png",
     "图片/Pasted image 20260523163859.png",
     "图片/Pasted image 20260523163841.png",
-    "图片/Pasted image 20260523163825.png",
-    "图片/Pasted image 20260523163808.png",
     "量化交易/简单交易复盘系统的设计/信息&选股&复盘&简单交易/简单的复盘和交易记录系统.md",
     "Coding/Project/RCS/RCS系统设计.md",
     "Coding/Project/RCS",
