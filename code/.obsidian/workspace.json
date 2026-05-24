@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "量化交易/简单交易复盘系统的设计/信息&选股&复盘&简单交易/简单的复盘和交易记录系统.md",
+                "file": "Coding/Project/RCS/RCS系统设计.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "简单的复盘和交易记录系统"
+              "title": "RCS系统设计"
             }
           }
         ]
@@ -157,13 +157,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "量化交易/简单交易复盘系统的设计/信息&选股&复盘&简单交易/简单的复盘和交易记录系统.md",
+                "file": "Coding/Project/RCS/RCS系统设计.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "简单的复盘和交易记录系统 的大纲"
+              "title": "RCS系统设计 的大纲"
             }
           },
           {
@@ -198,17 +198,21 @@
   },
   "active": "cde0aeb7049c69bc",
   "lastOpenFiles": [
-    "图片/Pasted image 20260520111040.png",
+    "图片/Pasted image 20260523164152.png",
+    "图片/Pasted image 20260523164141.png",
+    "图片/Pasted image 20260523164128.png",
+    "图片/Pasted image 20260523164117.png",
+    "图片/Pasted image 20260523164000.png",
+    "图片/Pasted image 20260523163939.png",
+    "图片/Pasted image 20260523163926.png",
+    "图片/Pasted image 20260523163859.png",
+    "图片/Pasted image 20260523163841.png",
+    "图片/Pasted image 20260523163825.png",
+    "图片/Pasted image 20260523163808.png",
     "量化交易/简单交易复盘系统的设计/信息&选股&复盘&简单交易/简单的复盘和交易记录系统.md",
-    "图片/Pasted image 20260520111140.png",
-    "图片/Pasted image 20260520111125.png",
-    "图片/Pasted image 20260520111117.png",
-    "图片/Pasted image 20260520111105.png",
-    "图片/Pasted image 20260520111054.png",
-    "图片/Pasted image 20260520110628.png",
-    "图片/Pasted image 20260520110641.png",
-    "图片/Pasted image 20260520110651.png",
-    "图片/Pasted image 20260520110616.png",
+    "Coding/Project/RCS/RCS系统设计.md",
+    "Coding/Project/RCS",
+    "Coding/Project",
     "量化交易/金融知识/期权.md",
     "理财/0511 香港待办事项.md",
     "量化交易/金融知识",
@@ -228,8 +232,6 @@
     "Coding/FrontEnd",
     "Coding/FrontEnd/React",
     "Coding",
-    "VibeCoding/Project/Plan First Project",
-    "VibeCoding/Project/TDD Project",
     "工具/git.md",
     "Agent/AI Agent框架 选择.md",
     "跨平台开发/Macos/Macos 下的选型和环境搭建.md",
