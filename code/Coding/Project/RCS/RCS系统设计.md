@@ -193,9 +193,531 @@
 * ai诊断和agent
 * 数据孪生和报表
 
+#### 在主模块中添加对其他模块的引用
+1、在主模块的EntityFrameworkCore项目下引用其他模块的EntityFrameworkCore
+2、修改主模块的DbContext ，builder.Configure其他模块();
+3、配置 ABP 模块化依赖 ( `[DependsOn]` )，在EntityFrameworkCoreModule下引用typeof(其他模块EntityFrameworkCoreModule)
 
+#### 设计各个模块的细节
+##### wms 的库位管理和信息管理的实现
 
+### 前端Vue3
+#### 改造Soybeanadmin
+##### 拉取模版代码
+> git clone https://github.com/soybeanjs/soybean-admin.git
 
+同时拉取一个实例仓库参考
+> git clone https://github.com/soybeanjs/soybean-admin.git
+
+删除前端的.git 然后推送前端到主仓库
+### DevOps：规范代码推送
+#### 本地拦截
+##### 第一步：在仓库根目录初始化 Husky
+```markdown
+# 1. 生成根目录的 package.json 
+pnpm init
+
+```
+###### 声明 Workspace
+**第一步：创建工作区配置文件** 在你的 `Abp+vue` 根目录下，新建一个文件，命名为 `pnpm-workspace.yaml`。
+
+**第二步：写入配置内容** 打开这个文件，把你的前端项目（Node.js 需要管理的部分）包含进去。写入以下内容并保存：
+```yaml
+packages:
+  # 包含你的 Vue 前端项目
+  - 'RCS_Vue'
+  # (RCS_API 是 .NET 项目，使用 NuGet 管理依赖，不需要写在这里)
+```
+** 在根目录安装 husky 作为开发依赖 (-w 表示在 workspace/root 安装)
+>pnpm add -w -D husky
+
+** 初始化 husky (这会在根目录生成一个 .husky 隐藏文件夹) 
+> npx husky init
+##### 第二步：配置 `pre-commit` 钩子 (极速 Lint)
+SoybeanAdmin 本身已经配置好了非常完善的 `lint-staged`（只检查本次修改的文件）。我们只需要在根目录的 Husky 钩子里触发它，顺便加上对 .NET 代码的格式检查。
+
+在你的终端中执行，覆盖 `.husky/pre-commit` 文件的内容：
+```bash
+cat << 'EOF' > .husky/pre-commit
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🛡️  触发 Pre-commit 检查..."
+
+# ==========================================
+# 1. 检查前端代码 (触发 SoybeanAdmin 内置的 lint-staged)
+# ==========================================
+echo "👉 [1/2] 正在检查前端 (Vue) 代码规范..."
+cd RCS_Vue
+# 确保 pnpm install 已经执行过
+if [ ! -d "node_modules" ]; then
+  echo "⚠️  未发现前端 node_modules，自动执行安装..."
+  pnpm install
+fi
+pnpm exec lint-staged
+# 检查退出码，如果报错则阻断 commit
+if [ $? -ne 0 ]; then
+  echo "❌ 前端代码不符合规范，Commit 被拦截！请修复上面的红字错误。"
+  exit 1
+fi
+cd ..
+
+# ==========================================
+# 2. 检查后端代码格式 (检查多余空格、换行等规范)
+# ==========================================
+echo "👉 [2/2] 正在检查后端 (.NET) 代码格式..."
+cd RCS_API
+# --verify-no-changes 表示只检查，如果发现不符合规范的代码直接报错，而不是悄悄帮你改掉
+dotnet format whitespace --verify-no-changes
+if [ $? -ne 0 ]; then
+  echo "❌ 后端代码格式不规范，Commit 被拦截！可以手动运行 'dotnet format' 自动修复。"
+  exit 1
+fi
+cd ..
+
+echo "✅ 所有检查通过，允许 Commit！"
+EOF
+```
+##### 第三步：配置 `pre-push` 钩子 (硬核编译与类型检查)
+`pre-commit` 只是查了“语法有没有写错”，但 TypeScript 的类型有没有推导错误（比如把 `string` 传给了 `number`），以及 C# 能不能正常编译，需要耗时更长的命令。我们把它放在 push 阶段。
+
+在终端执行以下命令创建 `.husky/pre-push` 文件：
+```bash
+cat << 'EOF' > .husky/pre-push
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🚀 触发 Pre-push 终极防线 (可能需要十几秒)..."
+
+# ==========================================
+# 1. 前端：严格 TypeScript 类型检查
+# ==========================================
+echo "👉 [1/2] 正在执行 Vue TypeScript 类型推导检查..."
+cd RCS_Vue
+pnpm run typecheck
+if [ $? -ne 0 ]; then
+  echo "❌ 前端 TypeScript 类型检查失败，Push 被拦截！"
+  exit 1
+fi
+cd ..
+
+# ==========================================
+# 2. 后端：无状态编译检查
+# ==========================================
+echo "👉 [2/2] 正在尝试编译 .NET 后端..."
+cd RCS_API
+dotnet build --no-restore
+if [ $? -ne 0 ]; then
+  echo "❌ 后端编译失败，Push 被拦截！"
+  exit 1
+fi
+cd ..
+
+echo "✅ 编译与类型检查全部通过，开始推送到 GitHub！"
+EOF
+```
+##### 给这两道防线赋予执行权限 (Mac 必须)
+```bash
+chmod +x .husky/pre-commit
+chmod +x .husky/pre-push
+```
+
+##### Test 测试提交报错
+```bash
+feng@nanfengdeMacBook-Pro Abp+vue % git add .
+
+feng@nanfengdeMacBook-Pro Abp+vue % git commit -m "test: husky hook"
+
+husky - DEPRECATED
+
+  
+
+Please remove the following two lines from .husky/pre-commit:
+
+  
+
+#!/usr/bin/env sh
+
+. "$(dirname -- "$0")/_/husky.sh"
+
+  
+
+They WILL FAIL in v10.0.0
+
+  
+
+🛡️  触发 Pre-commit 检查...
+
+👉 [1/2] 正在检查前端 (Vue) 代码规范...
+
+⚠️  未发现前端 node_modules，自动执行安装...
+
+Lockfile is up to date, resolution step is skipped
+
+Already up to date
+
+. prepare$ husky
+
+└─ Done in 934ms
+
+Done in 1.2s using pnpm v10.33.2
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_Vue:
+
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "lint-staged" not found
+
+husky - pre-commit script failed (code 254)
+```
+##### 修复这个报错
+###### 修复 Pre-commit (本地代码规范拦截)
+```bash
+cat << 'EOF' > .husky/pre-commit
+echo "🛡️  触发 Pre-commit 检查..."
+
+# ==========================================
+# 1. 检查前端代码
+# ==========================================
+echo "👉 [1/2] 正在检查前端 (Vue) 代码规范..."
+cd RCS_Vue
+if [ ! -d "node_modules" ]; then
+  pnpm install
+fi
+
+# 智能识别 SoybeanAdmin 使用的是 lint-staged 还是 nano-staged
+if grep -q "nano-staged" package.json; then
+  npx nano-staged
+elif grep -q "lint-staged" package.json; then
+  npx lint-staged
+else
+  # 如果都没找到，退而求其次运行全量 lint
+  pnpm run lint
+fi
+
+if [ $? -ne 0 ]; then
+  echo "❌ 前端代码不符合规范，Commit 被拦截！请修复上面的红字错误。"
+  exit 1
+fi
+cd ..
+
+# ==========================================
+# 2. 检查后端代码格式
+# ==========================================
+echo "👉 [2/2] 正在检查后端 (.NET) 代码格式..."
+cd RCS_API
+dotnet format whitespace --verify-no-changes
+if [ $? -ne 0 ]; then
+  echo "❌ 后端代码格式不规范，Commit 被拦截！可以手动运行 'dotnet format' 自动修复。"
+  exit 1
+fi
+cd ..
+
+echo "✅ 所有检查通过，允许 Commit！"
+EOF
+```
+###### 修复 Pre-push (云端推送前的类型/编译拦截)
+```bash
+cat << 'EOF' > .husky/pre-push
+echo "🚀 触发 Pre-push 终极防线 (可能需要十几秒)..."
+
+# ==========================================
+# 1. 前端 TypeScript 类型推导检查
+# ==========================================
+echo "👉 [1/2] 正在执行 Vue TypeScript 类型检查..."
+cd RCS_Vue
+pnpm run typecheck
+if [ $? -ne 0 ]; then
+  echo "❌ 前端 TypeScript 类型检查失败，Push 被拦截！"
+  exit 1
+fi
+cd ..
+
+# ==========================================
+# 2. 后端无状态编译检查
+# ==========================================
+echo "👉 [2/2] 正在尝试编译 .NET 后端..."
+cd RCS_API
+dotnet build --no-restore
+if [ $? -ne 0 ]; then
+  echo "❌ 后端编译失败，Push 被拦截！"
+  exit 1
+fi
+cd ..
+
+echo "✅ 编译与类型检查全部通过，开始推送到 GitHub！"
+EOF
+```
+##### 再次测试还是报错
+```bash
+feng@nanfengdeMacBook-Pro Abp+vue % git commit -m "test: husky hook fixes"
+
+🛡️  触发 Pre-commit 检查...
+
+👉 [1/2] 正在检查前端 (Vue) 代码规范...
+
+Lockfile is up to date, resolution step is skipped
+
+Already up to date
+
+. prepare$ husky
+
+└─ Done in 632ms
+
+Done in 902ms using pnpm v10.33.2
+
+grep: package.json: No such file or directory
+
+grep: package.json: No such file or directory
+
+ ERR_PNPM_NO_SCRIPT  Missing script: lint
+
+  
+
+Command "lint" not found.
+
+husky - pre-commit script failed (code 1)
+
+feng@nanfengdeMacBook-Pro Abp+vue %
+```
+##### 解决方案：注入“防呆与自诊断”脚本
+```bash
+cat << 'EOF' > .husky/pre-commit
+echo "🛡️  触发 Pre-commit 检查..."
+
+echo "👉 [1/2] 正在检查前端 (Vue) 代码规范..."
+cd RCS_Vue || { echo "❌ 找不到 RCS_Vue 目录"; exit 1; }
+
+# 【自诊断防线】检查前端 package.json 是否在正确的位置
+if [ ! -f "package.json" ]; then
+  echo "❌ 致命错误：在 RCS_Vue 目录下找不到 package.json！"
+  echo "💡 诊断结果：你的前端代码很可能多嵌套了一层文件夹，或者没有正确放进来。"
+  echo "📂 现将 RCS_Vue 目录下的实际内容打印如下，请排查："
+  ls -la
+  exit 1
+fi
+
+# 智能识别并执行 Lint
+if grep -q "nano-staged" package.json; then
+  pnpm exec nano-staged
+elif grep -q "lint-staged" package.json; then
+  pnpm exec lint-staged
+else
+  pnpm run lint
+fi
+
+if [ $? -ne 0 ]; then
+  echo "❌ 前端代码不符合规范，Commit 被拦截！请修复上面的红字错误。"
+  exit 1
+fi
+cd ..
+
+echo "👉 [2/2] 正在检查后端 (.NET) 代码格式..."
+cd RCS_API || { echo "❌ 找不到 RCS_API 目录"; exit 1; }
+dotnet format whitespace --verify-no-changes
+if [ $? -ne 0 ]; then
+  echo "❌ 后端代码格式不规范，Commit 被拦截！可以手动运行 'dotnet format' 自动修复。"
+  exit 1
+fi
+cd ..
+
+echo "✅ 所有检查通过，允许 Commit！"
+EOF
+```
+##### 再次测试提交
+```bash
+feng@nanfengdeMacBook-Pro Abp+vue % git add .
+
+feng@nanfengdeMacBook-Pro Abp+vue % git commit -m "test: husky hook structure fixed"
+
+🛡️  触发 Pre-commit 检查...
+
+👉 [1/2] 正在检查前端 (Vue) 代码规范...
+
+  
+
+> soybean-admin@2.2.0 lint /Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_Vue
+
+> oxlint --fix && eslint --fix .
+
+  
+
+Found 0 warnings and 0 errors.
+
+Finished in 687ms on 233 files with 141 rules using 8 threads.
+
+👉 [2/2] 正在检查后端 (.NET) 代码格式...
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application.Contracts/Permissions/RCSPermissions.cs(14,6): error WHITESPACE: 修复空格格式。 将 12 字符替换为 '\n\n\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application.Contracts/RCS.Application.Contracts.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application.Contracts/Permissions/RCSPermissions.cs(16,46): error WHITESPACE: 修复空格格式。 将 6 字符替换为 '\n\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application.Contracts/RCS.Application.Contracts.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application.Contracts/Permissions/RCSPermissions.cs(17,72): error WHITESPACE: 修复空格格式。 将 2 字符替换为 '\n'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application.Contracts/RCS.Application.Contracts.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application.Contracts/RCSDtoExtensions.cs(14,10): error WHITESPACE: 修复空格格式。 将 18 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application.Contracts/RCS.Application.Contracts.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application.Contracts/RCSDtoExtensions.cs(15,60): error WHITESPACE: 修复空格格式。 将 417 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\sdefined\sin\sthe\sdepended\smodules.\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\sExample:\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\sObjectExtensionManager.Instance\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\s\s\s.AddOrUpdateProperty<IdentityRoleDto,\sstring>("Title");\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\sSee\sthe\sdocumentation\sfor\smore:\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\shttps://docs.abp.io/en/abp/latest/Object-Extensions\n\s\s\s\s\s\s\s\s\s\s\s\s\s*/'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application.Contracts/RCS.Application.Contracts.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application.Contracts/RCSDtoExtensions.cs(25,20): error WHITESPACE: 修复空格格式。 将 10 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application.Contracts/RCS.Application.Contracts.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application/Properties/AssemblyInfo.cs(2,11): error WHITESPACE: 修复空格格式。 插入“\s”。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Application/RCS.Application.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.DbMigrator/DbMigratorHostedService.cs(27,10): error WHITESPACE: 修复空格格式。 将 13 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.DbMigrator/RCS.DbMigrator.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.DbMigrator/DbMigratorHostedService.cs(28,66): error WHITESPACE: 修复空格格式。 将 13 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.DbMigrator/RCS.DbMigrator.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.DbMigrator/DbMigratorHostedService.cs(29,33): error WHITESPACE: 修复空格格式。 将 13 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.DbMigrator/RCS.DbMigrator.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.DbMigrator/DbMigratorHostedService.cs(30,61): error WHITESPACE: 修复空格格式。 将 13 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.DbMigrator/RCS.DbMigrator.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCSDomainSharedModule.cs(50,63): error WHITESPACE: 修复空格格式。 将 28 字符替换为 '\n\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCS.Domain.Shared.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCSDomainSharedModule.cs(52,99): error WHITESPACE: 修复空格格式。 将 15 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCS.Domain.Shared.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCSDomainSharedModule.cs(53,100): error WHITESPACE: 修复空格格式。 将 15 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCS.Domain.Shared.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCSDomainSharedModule.cs(54,76): error WHITESPACE: 修复空格格式。 将 13 字符替换为 '\n\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCS.Domain.Shared.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCSDomainSharedModule.cs(56,12): error WHITESPACE: 修复空格格式。 将 20 字符替换为 '\n\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCS.Domain.Shared.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCSGlobalFeatureConfigurator.cs(13,10): error WHITESPACE: 修复空格格式。 将 18 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCS.Domain.Shared.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCSGlobalFeatureConfigurator.cs(14,96): error WHITESPACE: 修复空格格式。 将 193 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\sPlease\srefer\sto\sthe\sdocumentation\sto\slearn\smore\sabout\sthe\sGlobal\sFeatures\sSystem:\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\shttps://docs.abp.io/en/abp/latest/Global-Features\n\s\s\s\s\s\s\s\s\s\s\s\s\s*/'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCS.Domain.Shared.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCSGlobalFeatureConfigurator.cs(17,20): error WHITESPACE: 修复空格格式。 将 14 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain.Shared/RCS.Domain.Shared.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/OpenIddict/OpenIddictDataSeedContributor.cs(39,62): error WHITESPACE: 修复空格格式。 将 11 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/RCS.Domain.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/OpenIddict/OpenIddictDataSeedContributor.cs(41,26): error WHITESPACE: 修复空格格式。 将 15 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/RCS.Domain.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/OpenIddict/OpenIddictDataSeedContributor.cs(42,37): error WHITESPACE: 修复空格格式。 将 15 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/RCS.Domain.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/OpenIddict/OpenIddictDataSeedContributor.cs(58,88): error WHITESPACE: 修复空格格式。 将 14 字符替换为 '\n\n\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/RCS.Domain.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/OpenIddict/OpenIddictDataSeedContributor.cs(61,41): error WHITESPACE: 修复空格格式。 将 20 字符替换为 '\n\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/RCS.Domain.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/OpenIddict/OpenIddictDataSeedContributor.cs(88,10): error WHITESPACE: 修复空格格式。 将 40 字符替换为 '\n\n\n\n\n\n\n\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/RCS.Domain.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/OpenIddict/OpenIddictDataSeedContributor.cs(96,26): error WHITESPACE: 修复空格格式。 将 10 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/RCS.Domain.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/Properties/AssemblyInfo.cs(2,11): error WHITESPACE: 修复空格格式。 插入“\s”。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/RCS.Domain.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/Properties/AssemblyInfo.cs(3,11): error WHITESPACE: 修复空格格式。 插入“\s”。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.Domain/RCS.Domain.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSDbContext.cs(74,40): error WHITESPACE: 修复空格格式。 将 20 字符替换为 '\n\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSDbContext.cs(79,40): error WHITESPACE: 修复空格格式。 将 30 字符替换为 '\n\n\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSDbContext.cs(82,61): error WHITESPACE: 修复空格格式。 将 12 字符替换为 '\n\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSDbContext.cs(84,42): error WHITESPACE: 修复空格格式。 将 10 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSDbContext.cs(85,12): error WHITESPACE: 修复空格格式。 将 10 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSDbContext.cs(86,87): error WHITESPACE: 修复空格格式。 将 10 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSDbContext.cs(87,83): error WHITESPACE: 修复空格格式。 将 10 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSDbContext.cs(88,20): error WHITESPACE: 修复空格格式。 将 10 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSDbContext.cs(89,14): error WHITESPACE: 修复空格格式。 将 6 字符替换为 '\n\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSDbContextFactory.cs(15,50): error WHITESPACE: 修复空格格式。 将 20 字符替换为 '\n\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSDbContextFactory.cs(20,73): error WHITESPACE: 修复空格格式。 将 20 字符替换为 '\n\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSEfCoreEntityExtensionMappings.cs(18,10): error WHITESPACE: 修复空格格式。 将 18 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSEfCoreEntityExtensionMappings.cs(19,62): error WHITESPACE: 修复空格格式。 将 1152 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\sentities\sdefined\sin\sthe\smodules\sused\sby\syour\sapplication.\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\sThis\sclass\scan\sbe\sused\sto\smap\sthese\sextra\sproperties\sto\stable\sfields\sin\sthe\sdatabase.\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\sUSE\sTHIS\sCLASS\sONLY\sTO\sCONFIGURE\sEF\sCORE\sRELATED\sMAPPING.\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\sUSE\sRCSModuleExtensionConfigurator\sCLASS\s(in\sthe\sDomain.Shared\sproject)\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\sFOR\sA\sHIGH\sLEVEL\sAPI\sTO\sDEFINE\sEXTRA\sPROPERTIES\sTO\sENTITIES\sOF\sTHE\sUSED\sMODULES\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\sExample:\sMap\sa\sproperty\sto\sa\stable\sfield:\n\n\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\sObjectExtensionManager.Instance\n\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s.MapEfCoreProperty<IdentityUser,\sstring>(\n\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s"MyProperty",\n\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s(entityBuilder,\spropertyBuilder)\s=>\n\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s{\n\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\spropertyBuilder.HasMaxLength(128);\n\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s}\n\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s\s);\n\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\sSee\sthe\sdocumentation\sfor\smore:\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\shttps://docs.abp.io/en/abp/latest/Customizing-Application-Modules-Extending-Entities\n\s\s\s\s\s\s\s\s\s\s\s\s\s*/'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSEfCoreEntityExtensionMappings.cs(41,20): error WHITESPACE: 修复空格格式。 将 10 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSEntityFrameworkCoreModule.cs(48,10): error WHITESPACE: 修复空格格式。 将 18 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSEntityFrameworkCoreModule.cs(49,63): error WHITESPACE: 修复空格格式。 将 69 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s\s*\sdefault\srepositories\sonly\sfor\saggregate\sroots\s*/'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSEntityFrameworkCoreModule.cs(50,68): error WHITESPACE: 修复空格格式。 将 14 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/EntityFrameworkCore/RCSEntityFrameworkCoreModule.cs(66,12): error WHITESPACE: 修复空格格式。 将 16 字符替换为 '\n\n\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/Properties/AssemblyInfo.cs(2,11): error WHITESPACE: 修复空格格式。 插入“\s”。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.EntityFrameworkCore/RCS.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi.Host/RCSHttpApiHostModule.cs(105,16): error WHITESPACE: 修复空格格式。 将 28 字符替换为 '\n\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi.Host/RCS.HttpApi.Host.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCSHttpApiModule.cs(11,15): error WHITESPACE: 修复空格格式。 将 5 字符替换为 '\n\n'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCS.HttpApi.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCSHttpApiModule.cs(13,13): error WHITESPACE: 修复空格格式。 将 6 字符替换为 '\n\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCS.HttpApi.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCSHttpApiModule.cs(14,43): error WHITESPACE: 修复空格格式。 将 6 字符替换为 '\n\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCS.HttpApi.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCSHttpApiModule.cs(15,50): error WHITESPACE: 修复空格格式。 将 6 字符替换为 '\n\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCS.HttpApi.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCSHttpApiModule.cs(16,47): error WHITESPACE: 修复空格格式。 将 6 字符替换为 '\n\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCS.HttpApi.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCSHttpApiModule.cs(17,37): error WHITESPACE: 修复空格格式。 将 6 字符替换为 '\n\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCS.HttpApi.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCSHttpApiModule.cs(18,38): error WHITESPACE: 修复空格格式。 将 6 字符替换为 '\n\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCS.HttpApi.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCSHttpApiModule.cs(19,46): error WHITESPACE: 修复空格格式。 将 6 字符替换为 '\n\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/src/RCS.HttpApi/RCS.HttpApi.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.Application.Tests/Books/BookAppService_Tests .cs(52,6): error WHITESPACE: 修复空格格式。 将 12 字符替换为 '\n\n\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.Application.Tests/RCS.Application.Tests.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.EntityFrameworkCore.Tests/EntityFrameworkCore/Samples/SampleRepositoryTests.cs(31,10): error WHITESPACE: 修复空格格式。 将 18 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.EntityFrameworkCore.Tests/RCS.EntityFrameworkCore.Tests.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.EntityFrameworkCore.Tests/EntityFrameworkCore/Samples/SampleRepositoryTests.cs(32,22): error WHITESPACE: 修复空格格式。 将 18 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.EntityFrameworkCore.Tests/RCS.EntityFrameworkCore.Tests.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.EntityFrameworkCore.Tests/EntityFrameworkCore/Samples/SampleRepositoryTests.cs(33,57): error WHITESPACE: 修复空格格式。 将 18 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.EntityFrameworkCore.Tests/RCS.EntityFrameworkCore.Tests.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.EntityFrameworkCore.Tests/EntityFrameworkCore/Samples/SampleRepositoryTests.cs(34,66): error WHITESPACE: 修复空格格式。 将 20 字符替换为 '\n\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.EntityFrameworkCore.Tests/RCS.EntityFrameworkCore.Tests.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.EntityFrameworkCore.Tests/EntityFrameworkCore/Samples/SampleRepositoryTests.cs(36,25): error WHITESPACE: 修复空格格式。 将 18 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.EntityFrameworkCore.Tests/RCS.EntityFrameworkCore.Tests.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.HttpApi.Client.ConsoleTestApp/Program.cs(14,10): error WHITESPACE: 修复空格格式。 将 13 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.HttpApi.Client.ConsoleTestApp/RCS.HttpApi.Client.ConsoleTestApp.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.HttpApi.Client.ConsoleTestApp/Program.cs(15,53): error WHITESPACE: 修复空格格式。 将 13 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.HttpApi.Client.ConsoleTestApp/RCS.HttpApi.Client.ConsoleTestApp.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.HttpApi.Client.ConsoleTestApp/Program.cs(16,59): error WHITESPACE: 修复空格格式。 将 13 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.HttpApi.Client.ConsoleTestApp/RCS.HttpApi.Client.ConsoleTestApp.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.HttpApi.Client.ConsoleTestApp/Program.cs(17,66): error WHITESPACE: 修复空格格式。 将 13 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.HttpApi.Client.ConsoleTestApp/RCS.HttpApi.Client.ConsoleTestApp.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.HttpApi.Client.ConsoleTestApp/Program.cs(18,67): error WHITESPACE: 修复空格格式。 将 13 字符替换为 '\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/test/RCS.HttpApi.Client.ConsoleTestApp/RCS.HttpApi.Client.ConsoleTestApp.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/device/src/Device.EntityFrameworkCore/EntityFrameworkCore/DeviceEntityFrameworkCoreModule.cs(17,88): error WHITESPACE: 修复空格格式。 将 28 字符替换为 '\n\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/device/src/Device.EntityFrameworkCore/Device.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/device/src/Device.EntityFrameworkCore/EntityFrameworkCore/DeviceEntityFrameworkCoreModule.cs(21,15): error WHITESPACE: 修复空格格式。 将 10 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/device/src/Device.EntityFrameworkCore/Device.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/diagnostics/src/Diagnostics.EntityFrameworkCore/EntityFrameworkCore/DiagnosticsEntityFrameworkCoreModule.cs(17,93): error WHITESPACE: 修复空格格式。 将 28 字符替换为 '\n\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/diagnostics/src/Diagnostics.EntityFrameworkCore/Diagnostics.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/diagnostics/src/Diagnostics.EntityFrameworkCore/EntityFrameworkCore/DiagnosticsEntityFrameworkCoreModule.cs(21,15): error WHITESPACE: 修复空格格式。 将 10 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/diagnostics/src/Diagnostics.EntityFrameworkCore/Diagnostics.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/dispatch/src/Dispatch.EntityFrameworkCore/EntityFrameworkCore/DispatchEntityFrameworkCoreModule.cs(17,90): error WHITESPACE: 修复空格格式。 将 28 字符替换为 '\n\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/dispatch/src/Dispatch.EntityFrameworkCore/Dispatch.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/dispatch/src/Dispatch.EntityFrameworkCore/EntityFrameworkCore/DispatchEntityFrameworkCoreModule.cs(21,15): error WHITESPACE: 修复空格格式。 将 10 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/dispatch/src/Dispatch.EntityFrameworkCore/Dispatch.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/wms/src/Wms.EntityFrameworkCore/EntityFrameworkCore/WmsEntityFrameworkCoreModule.cs(17,85): error WHITESPACE: 修复空格格式。 将 28 字符替换为 '\n\n\s\s\s\s\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/wms/src/Wms.EntityFrameworkCore/Wms.EntityFrameworkCore.csproj]
+
+/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/wms/src/Wms.EntityFrameworkCore/EntityFrameworkCore/WmsEntityFrameworkCoreModule.cs(21,15): error WHITESPACE: 修复空格格式。 将 10 字符替换为 '\n\s\s\s\s\s\s\s\s'。 [/Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_API/modules/wms/src/Wms.EntityFrameworkCore/Wms.EntityFrameworkCore.csproj]
+
+husky - pre-commit script failed (code 2)
+
+feng@nanfengdeMacBook-Pro Abp+vue %
+```
+##### 让 .NET 官方工具帮我们把这些空格**自动修复**
+```bash
+# 1. 进入后端目录
+cd RCS_API
+
+# 2. 执行自动格式化（去掉刚才的 verify 参数，让它真实地去修改文件）
+dotnet format
+
+# 3. 格式化完成后，退回根目录
+cd ..
+
+# 4. 把刚刚被格式化修正的后端文件重新加入暂存区
+git add .
+
+# 5. 再次发起无敌的 Commit！
+git commit -m "feat: init frontend and backend with strict husky hooks"
+```
+#### 
 # 仓库二：极客架构派 (ASP.NET Core + React 手搓)
 ## 仓库二设计：
 #### 系统架构图
