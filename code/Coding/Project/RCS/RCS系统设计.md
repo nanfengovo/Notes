@@ -198,8 +198,52 @@
 2、修改主模块的DbContext ，builder.Configure其他模块();
 3、配置 ABP 模块化依赖 ( `[DependsOn]` )，在EntityFrameworkCoreModule下引用typeof(其他模块EntityFrameworkCoreModule)
 
+#### 主模块到底该写什么业务
+##### 职责一：跨模块聚合与编排 (BFF - Backend for Frontend)
+
+这是主模块最常见的业务场景。底层的独立模块为了解耦，往往只能提供单一领域的数据。
+
+- **痛点：** 你的前端需要展示一个“RCS 监控大屏”，上面同时有：AGV 的电量（来自 Device）、当前正在执行的任务流（来自 Dispatch）、以及终点库位的状态（来自 WMS）。如果让前端去发 3 个请求分别拉数据再拼装，前端代码会变得极其臃肿，且浪费网络开销。
+    
+- **主模块的作为：** 在主模块的 `RCS.Application` 里建一个 `DashboardAppService`。这个服务内部**同时注入** `IWmsAppService`、`IDispatchAppService` 和 `IDeviceAppService`。由后端在内存里把这三个模块的数据查询出来，拼装成一个包含所有信息的 `DashboardDto`，一把返回给前端。
+    
+- **定位：** 主模块充当了 BFF (为前端服务的后端) 层，负责脏活累活和数据组装，而底层模块依然保持纯洁。
+    
+
+##### 职责二：全局基础数据与鉴权接管 (Global Master Data)
+
+有些数据太宏观了，强行塞给任何一个子模块都很牵强。
+
+- **工厂地图拓扑数据 (Map Topology)：** 所有的点位、路线规划图，WMS 需要看，Dispatch 也需要看。这种“全局共享字典”通常放在主模块的数据库里最合适。
+    
+- **定制化的权限逻辑：** ABP 提供了标准的 Identity 模块，但如果你需要接入工厂内部的钉钉扫码登录、或者对接外部 MES 系统的特定 SSO (单点登录)，这些定制化的认证中间件和拦截器代码，统统写在主工程里。
+    
+
+##### 职责三：第三方系统的“外交官” (Anti-Corruption Layer)
+
+RCS 系统不是孤岛，它上面通常还有上游的 ERP 或 MES 系统。
+
+- 当 MES 系统通过 Webhook 下发一条生产订单时，它并不知道什么是 Dispatch，什么是 WMS。
+    
+- **主模块的作为：** 主工程暴露一个 `api/integration/mes/receive-order` 的对外接口。接到 MES 的指令后，主工程负责把这个庞大的指令“翻译”并“拆解”，一部分转换成入库单通知 WMS 锁定库位，另一部分转换成运输指令通知 Dispatch 去调度小车。主模块在这里充当了**防腐层**。
+    
+
+**总结：** 不要觉得主模块空了是不对的。**底层模块负责“专精”，主模块负责“统筹”。** 这种“大前端（包括 BFF）+ 小后台（各核心模块）”的格局，是系统未来能够平滑演进到微服务的完美形态。
 #### 设计各个模块的细节
+##### 主模块通用功能和实现
+* 登录功能
+* RBAC 功能
+* 用户操作日志记录
+* 出入站日志记录*
+
 ##### wms 的库位管理和信息管理的实现
+* 创建库位
+* 
+* *
+**Riok.Mapperly** 作为对象映射工具
+
+##### diagnostics（可观测性和流程编排）模块
+
 
 ### 前端Vue3
 #### 改造Soybeanadmin
@@ -210,6 +254,298 @@
 > git clone https://github.com/soybeanjs/soybean-admin.git
 
 删除前端的.git 然后推送前端到主仓库
+##### **前后端 API 契约自动化生成 (Orval)**
+在 SoybeanAdmin 中接入 Orval
+在开始前，**请先通过 Visual Studio 或命令行将你的 ABP 后端项目启动起来**（确保能通过浏览器访问到 Swagger UI 页面，我们需要获取那个 `swagger.json` 的地址作为数据源）。
+
+准备好后，打开终端，按照以下步骤在前端项目中配置
+###### 1. 安装核心依赖
+进入你的前端目录，安装 Orval 作为开发依赖：
+```bash
+cd RCS_Vue
+pnpm add -D orval
+```
+###### 2. 注入架构级配置文件
+在 `RCS_Vue` 的根目录下，新建一个文件，精准命名为 **`orval.config.ts`**，并将以下配置完整复制进去：
+```bash
+import { defineConfig } from 'orval';
+
+  
+
+export default defineConfig({
+
+rcsApi: {
+
+input: {
+
+target: 'https://localhost:44367/swagger/v1/swagger.json',
+
+filters: {
+
+tags: [/Wms/, /Dispatch/, /Device/, /Diagnostics/]
+
+}
+
+},
+
+output: {
+
+mode: 'tags-split',
+
+target: 'src/service/api/generated/api.ts',
+
+schemas: 'src/service/api/generated/models',
+
+client: 'axios',
+
+// 👇 核心改动：如果 tags 过滤后为空，直接不生成任何文件，这样 Linter 就不会报错了
+
+override: {
+
+mutator: {
+
+path: 'src/utils/http/index.ts',
+
+name: 'request'
+
+}
+
+}
+
+},
+
+// 👇 新增这个 hooks，在生成前检查一下，如果没有目标，就报错退出，不产生空文件
+
+hooks: {
+
+afterAllFilesWrite: 'eslint --fix src/service/api/generated'
+
+}
+
+}
+
+});
+```
+###### 3. 注册 NPM 自动化脚本
+```json
+"scripts": {
+  "dev": "...",
+  "build": "...",
+  // 👇 新增这行自动化生成指令
+  "api:gen": "orval"
+}
+```
+###### 4. 见证全栈联动的时刻
+确保你的后端依旧在稳定运行，然后在 `RCS_Vue` 目录下敲下这条指令：
+```bash
+pnpm run api:gen
+```
+如果配置无误，终端会瞬间闪过多条绿色日志。此时，去你的代码编辑器里点开 `RCS_Vue/src/service/api/generated/` 文件夹，看看里面是不是凭空多出了一套极其工整、带有完整注释的 TypeScript 模型和请求函数！
+###### pnpm run api:gen 报错
+```bash
+feng@nanfengdeMacBook-Pro RCS_Vue % pnpm run api:gen
+> soybean-admin@2.2.0 api:gen /Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_Vue
+> orval
+🍻 orval v8.12.3 - A swagger client generator for typescript
+[WARN] Failed to parse JSON/YAML from URL: https://localhost:44367/swagger/v1/swagger.json
+🛑 rcsApi - Failed to resolve input: Please provide a valid string value or pass a loader to process the input
+🛑 One or more project failed, see above for details
+ ELIFECYCLE  Command failed with exit code 1.
+```
+** 原因**
+Node.js 拒绝了本地自签名的 HTTPS 证书
+由于我们在本地开发用的是 `https://localhost`，这个 HTTPS 证书是 .NET 临时伪造的（自签名证书）。你的 Mac 浏览器可能会弹出安全警告让你点“继续访问”，但 **Node.js (Orval 的底层) 非常严格，它遇到不合法的证书会直接切断网络连接**，导致抓取失败。
+
+**终极解决方案（绕过 Node.js 证书校验）：**
+
+既然你用的是 Mac (zsh 环境)，我们可以直接在执行命令时临时注入一个环境变量，让 Node.js “闭嘴”，放行所有 HTTPS 请求。
+
+请在 `RCS_Vue` 目录下，执行这行注入了“特权”的命令：
+```bash
+NODE_TLS_REJECT_UNAUTHORIZED=0 pnpm run api:gen
+```
+ 一劳永逸的优雅改法
+
+如果上面的特权命令执行成功了，为了避免每次都要敲这么长一串，我们直接把这个“特权”写进前端的自动化脚本里。
+
+打开前端 `RCS_Vue/package.json`，找到 `scripts` 里的 `api:gen`，把它改成这样：
+
+JSON
+
+```
+"scripts": {
+  // ... 其他脚本
+  "api:gen": "NODE_TLS_REJECT_UNAUTHORIZED=0 orval"
+}
+```
+新的报错
+```
+feng@nanfengdeMacBook-Pro RCS_Vue % NODE_TLS_REJECT_UNAUTHORIZED=0 pnpm run api:gen
+
+> soybean-admin@2.2.0 api:gen /Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_Vue
+> orval
+
+🍻 orval v8.12.3 - A swagger client generator for typescript
+(node:96046) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+(Use `node --trace-warnings ...` to show where the warning was created)
+🛑 rcsApi - Invalid component keys found. OpenAPI component keys must match the pattern /^[a-zA-Z0-9.\-_]+$/ (non-ASCII characters are not allowed per the spec).
+  See: https://spec.openapis.org/oas/v3.0.3.html#components-object
+  Invalid keys:
+    - components.schemas.Volo.Abp.Application.Dtos.ListResultDto`1[[Volo.Abp.Identity.IdentityRoleDto, Volo.Abp.Identity.Application.Contracts, Version=10.3.0.0, Culture=neutral, PublicKeyToken=null]]
+    - components.schemas.Volo.Abp.Application.Dtos.ListResultDto`1[[Volo.Abp.Users.UserData, Volo.Abp.Users.Abstractions, Version=10.3.0.0, Culture=neutral, PublicKeyToken=null]]
+    - components.schemas.Volo.Abp.Application.Dtos.PagedResultDto`1[[Volo.Abp.Identity.IdentityRoleDto, Volo.Abp.Identity.Application.Contracts, Version=10.3.0.0, Culture=neutral, PublicKeyToken=null]]
+    - components.schemas.Volo.Abp.Application.Dtos.PagedResultDto`1[[Volo.Abp.Identity.IdentityUserDto, Volo.Abp.Identity.Application.Contracts, Version=10.3.0.0, Culture=neutral, PublicKeyToken=null]]
+🛑 One or more project failed, see above for details
+ ELIFECYCLE  Command failed with exit code 1.
+```
+
+```
+
+###### 关于orval自动生成带有完整注释的 TypeScript 模型和请求函数的说明
+> 从上面的配置文件来看**它只会生成这 4 个模块的接口和模型。** ABP 默认会把 Controller 或 AppService 的名字（或者你通过配置指定的前缀）作为 Swagger 的 Tag。因为我们加了这个正则过滤，如果此时你在主模块（比如 `RCS.Application`）里写了一个 `DashboardAppService`，Orval 在扫描时会因为它的 Tag 不匹配这四个正则规则，而**直接忽略它**，前端自然也生成不出对应的请求函数。
+
+
+
+**如果未来主模块有了业务接口怎么办？** 很简单，如果你在主模块里写了接口，只需要在 `orval.config.ts` 的正则列表里加上它即可，比如加上 `/Dashboard/` 或 `/System/`。
+
+```
+在后端给类名“做个整容”
+我们需要在后端的宿主工程里，写几行代码拦截 Swagger 的生成逻辑，把所有不合法的字符强制替换掉。
+
+**第一步：修改后端的 Swagger 配置**
+
+1. 在 VS Code 里，找到并打开后端的这个文件：`RCS_API/src/RCS.HttpApi.Host/RCSHttpApiHostModule.cs`。
+    
+2. 在文件里搜索 `ConfigureSwagger 这个方法。
+    
+3. 你会看到里面有一段关于 `options.CustomSchemaIds(...)` 的配置。如果没有，就在 `options.SwaggerDoc` 下方添加。把它修改为下面这样：
+```c#
+private static void ConfigureSwagger(ServiceConfigurationContext context, IConfiguration configuration)
+
+{
+
+context.Services.AddAbpSwaggerGenWithOidc(
+
+configuration["AuthServer:Authority"]!,
+
+["RCS"],
+
+[AbpSwaggerOidcFlows.AuthorizationCode],
+
+null,
+
+options =>
+
+{
+
+options.SwaggerDoc("v1", new OpenApiInfo { Title = "RCS API", Version = "v1" });
+
+options.DocInclusionPredicate((docName, description) => true);
+
+// 👇 核心修复代码：强行拦截并正则替换不合法字符
+
+options.CustomSchemaIds(type =>
+
+{
+
+var name = type.FullName ?? type.Name;
+
+// 用下划线替换掉所有不符合 OpenAPI 规范的字符（如反引号、中括号、逗号、空格）
+
+return System.Text.RegularExpressions.Regex.Replace(name, @"[^a-zA-Z0-9\.\-_]", "_");
+
+});
+
+});
+
+}
+```
+生成后提交报错
+```bash
+feng@nanfengdeMacBook-Pro Abp+vue % git add .
+
+feng@nanfengdeMacBook-Pro Abp+vue % git commit -m 'fix api format for orval'
+
+🛡️  触发 Pre-commit 检查...
+
+👉 [1/2] 正在检查前端 (Vue) 代码规范...
+
+  
+
+> soybean-admin@2.2.0 lint /Users/feng/DevOps/Projects/ZKXS/RCS/RCS/Abp+vue/RCS_Vue
+
+> oxlint --fix && eslint --fix .
+
+  
+
+  
+
+  **×** **unicorn(no-empty-file)**: **Empty files are not allowed.**
+
+   ╭─[**src/service/api/generated/models/index.ts**:1:1]
+
+ 1 │ ╭─▶ /**
+
+ 2 │ │    * Generated by orval v8.12.3 🍺
+
+ 3 │ │    * Do not edit manually.
+
+ 4 │ │    * RCS API
+
+ 5 │ ╰─▶  * OpenAPI spec version: v1
+
+ 6 │      */
+
+   ╰────
+
+  help: Delete this file or add some code to it.
+
+  
+
+Found 0 warnings and 1 error.
+
+Finished in 445ms on 235 files with 141 rules using 8 threads.
+
+ ELIFECYCLE  Command failed with exit code 1.
+
+husky - pre-commit script failed (code 1)
+
+feng@nanfengdeMacBook-Pro Abp+vue %
+```
+解决
+第一步：屏蔽 oxlint 的检查
+在你的 `RCS_Vue` 根目录下（也就是截图里的那一层），新建一个没有任何后缀的文件，精准命名为 **`.oxlintignore`**。 在里面写入这一行代码并保存：
+```
+src/service/api/generated/
+```
+**第二步：屏蔽 ESLint 的检查** 打开截图里的 `eslint.config.js` 文件。 SoybeanAdmin 的配置通常是基于函数的。你只需要在导出的配置对象/数组中，加一个 `ignores` 节点即可。 找到类似 `export default ... (` 的地方，把生成的路径加进去：
+把`eslint.config.js`完整替换
+```javascript
+import { defineConfig } from '@soybeanjs/eslint-config-vue';
+
+  
+
+export default defineConfig({
+
+'vue/component-name-in-template-casing': [
+
+'warn',
+
+'PascalCase',
+
+{
+
+registeredComponentsOnly: false,
+
+ignores: ['/^icon-/']
+
+}
+
+]
+
+});
+```
+
 ### DevOps：规范代码推送
 #### 本地拦截
 ##### 第一步：在仓库根目录初始化 Husky
@@ -218,6 +554,7 @@
 pnpm init
 
 ```
+#### 第一道防线 本地拦截
 ###### 声明 Workspace
 **第一步：创建工作区配置文件** 在你的 `Abp+vue` 根目录下，新建一个文件，命名为 `pnpm-workspace.yaml`。
 
@@ -233,6 +570,8 @@ packages:
 
 ** 初始化 husky (这会在根目录生成一个 .husky 隐藏文件夹) 
 > npx husky init
+
+
 ##### 第二步：配置 `pre-commit` 钩子 (极速 Lint)
 SoybeanAdmin 本身已经配置好了非常完善的 `lint-staged`（只检查本次修改的文件）。我们只需要在根目录的 Husky 钩子里触发它，顺便加上对 .NET 代码的格式检查。
 
@@ -717,10 +1056,583 @@ git add .
 # 5. 再次发起无敌的 Commit！
 git commit -m "feat: init frontend and backend with strict husky hooks"
 ```
-#### 
+#### 第二道防线：云端流水线（Github Action）
+##### 第一步：创建流水线配置文件
+在你的 `Abp+vue` 根目录下，新建一个隐藏文件夹层级 `.github/workflows/`，并在里面创建一个名为 `ci.yml` 的文件。
+##### 第二步：编写 Monorepo 的双轨 YAML 脚本
+针对你当前“左手 .NET 10，右手 Vue3 + pnpm”的单体仓库结构，请将以下内容完整复制进 `ci.yml` 文件中。
+
+这份脚本包含了高级的路径过滤（Path Filtering）技巧，这意味着改前端代码不会触发后端编译，极大节省时间和资源：
+```yaml
+name: RCS CI Pipeline
+
+# 触发条件：推送到 main 分支，或者向 main 分支提交 PR 时触发
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # ==========================================
+  # 任务 1：后端 .NET 编译与测试
+  # ==========================================
+  build-backend:
+    name: 🏗️ Build & Test .NET Backend
+    runs-on: ubuntu-latest
+    # 路径过滤：只有当 RCS_API 目录下的文件变动时，才执行此任务
+    # paths:
+    #   - 'RCS_API/**'
+    
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x' # 完美匹配你本地的 net10.0
+
+      - name: 📦 Restore Dependencies
+        working-directory: ./RCS_API
+        run: dotnet restore
+
+      - name: 🔨 Build
+        working-directory: ./RCS_API
+        run: dotnet build --no-restore
+
+      - name: 🧪 Run Tests
+        working-directory: ./RCS_API
+        # 即使某一个测试失败，流水线也会标红并阻止合并
+        run: dotnet test --no-build --verbosity normal
+
+
+  # ==========================================
+  # 任务 2：前端 Vue 检查与构建
+  # ==========================================
+  build-frontend:
+    name: 🎨 Build & Lint Vue Frontend
+    runs-on: ubuntu-latest
+    # paths:
+    #   - 'RCS_Vue/**'
+    #   - 'package.json'
+    #   - 'pnpm-workspace.yaml'
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10 # 使用最新的 pnpm v10
+
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm' # 自动缓存依赖，加速下一次流水线
+
+      - name: 📦 Install Dependencies
+        # 因为我们配置了 workspace，在根目录执行 install 即可
+        run: pnpm install
+
+      - name: 🧹 Lint Frontend
+        working-directory: ./RCS_Vue
+        run: pnpm run lint
+
+      - name: 🔨 Typecheck & Build
+        working-directory: ./RCS_Vue
+        # 确保在云端能成功打包为静态文件
+        run: pnpm run build
+```
+###### 解析CI文件
+```
+这份 `ci.yml` 是 GitHub Actions 的核心配置文件，它定义了你项目的“自动化安检系统”。我们可以把它拆解为几个关键部分来理解：
+
+### 1. 全局定义与触发规则 (`name`, `on`)
+
+- **`name: RCS CI Pipeline`**: 这是该流水线在 GitHub Actions 页面上显示的名字，方便你区分不同的流程。
+    
+- **`on` (触发器)**: 定义了“什么时候运行”。
+    
+    - **`push: branches: ["main"]`**: 当你把代码推送到 `main` 分支时，自动运行。
+        
+    - **`pull_request: branches: ["main"]`**: 当有人向 `main` 分支提交 Pull Request（合并请求）时，自动运行。这能保证合并进主干的代码永远是健康的。
+        
+
+### 2. 任务执行块 (`jobs`)
+
+GitHub Actions 把任务分成多个 `job`。在你的配置中，`build-backend` 和 `build-frontend` 是**并行执行**的（它们互不干扰，同时启动，节省等待时间）。
+
+- **`runs-on: ubuntu-latest`**: 定义执行环境。告诉 GitHub 租用一台运行最新版 Ubuntu 的云端虚拟机来跑你的任务。
+    
+
+### 3. 具体步骤 (`steps`)
+
+这是任务的具体执行逻辑，按顺序执行。
+
+#### 基础设施准备
+
+- **`name`**: 给每一个步骤取个名字，在 GitHub 网页日志里会显示这些名字，方便你排查问题。
+    
+- **`uses`**: 使用别人（或 GitHub 官方）预写好的“动作（Action）”。
+    
+    - `actions/checkout@v4`: 这是必须的，它的作用是从仓库中把你的代码下载到云端虚拟机里。
+        
+    - `actions/setup-dotnet@v4` / `setup-node@v4`: 自动配置环境，相当于在云端装好 .NET 和 Node.js 环境。
+        
+    - `with`: 给上面的 `uses` 传递参数（比如指定 `node-version: '20'` 或 `dotnet-version: '10.0.x'`）。
+        
+
+#### 逻辑运行
+
+- **`working-directory`**: **极其重要**。因为你的项目是个 monorepo（单体仓库，前后端都在一个仓库里），你必须告诉系统在哪个文件夹下面执行命令。
+    
+    - 如果不写这个，它默认在根目录运行，找不到 `dotnet restore` 或 `pnpm install`。
+        
+- **`run`**: 真正的 shell 命令。这就是你在自己电脑终端里敲的命令（如 `dotnet build`, `pnpm run lint`）。
+    
+
+### 4. 进阶理解：Path Filtering (路径过滤)
+
+你代码里有一段被注释掉的配置：
+
+YAML
+
+```
+ paths:
+  - 'RCS_API/**'
+```
+
+如果未来你的项目变得非常大，这个配置就派上大用场了。
+
+- **它的含义是：** “只有当 `RCS_API` 目录下的代码发生变化时，才运行这个 job”。
+    
+- **价值：** 如果你只修改了前端页面，那么后端任务 `build-backend` 就不会被触发，**直接跳过**。这能节省大量的构建时长（Minutes）和云端算力资源。
+    
+
+### 总结：CI 的本质
+
+这份文件通过定义一套“标准操作流程（SOP）”，强制所有代码在进入 `main` 分支之前，必须经过：
+
+1. **编译 (Build)**：保证语法没写错。
+    
+2. **依赖安装 (Restore/Install)**：保证包没丢。
+    
+3. **测试 (Test/Lint)**：保证代码逻辑符合规范。
+    
+
+一旦其中任何一步失败（例如 `pnpm run lint` 报错），GitHub Actions 就会把流水线标红，通过邮件提醒你，并且**阻止你点击“合并”按钮**。这就是 DevOps 中最核心的“质量门禁”。
+```
+##### 提交并激活流水线
+```yaml
+git add .
+git commit -m "ci: add GitHub Actions pipeline for backend and frontend"
+git push
+```
+##### ci推送报错
+![[b14adb67474618aa2df40210ba5ac2f6.png]]
+```
+### 第一步：在 GitHub 上补全 Token 权限
+
+1. 登录你的 GitHub，点击右上角头像，选择 **Settings (设置)**。
+    
+2. 在左侧菜单滑到最底下，点击 **Developer settings (开发者设置)**。
+    
+3. 在左侧选择 **Personal access tokens** -> **Tokens (classic)**。（如果你使用的是 Fine-grained tokens，就在那边修改）。
+    
+4. 找到你目前使用的那个 Token，点击它进去编辑。
+    
+5. 在权限列表（Select scopes）中，往下拉，找到并**勾选 `workflow` (Update GitHub Action workflows)** 这个选项。
+    
+6. 滑到最底部，点击 **Update token**。
+    
+
+_(注意：如果你忘记了旧 Token 的值，或者无法修改，直接点击 "Generate new token"，勾选 `repo` 和 `workflow` 权限，生成一串新的 Token 字符串并复制下来。)_
+### 第二步：在你的 MacBook 上更新凭据
+
+因为你的 Mac 钥匙串（Keychain）已经记住了那个没有 `workflow` 权限的旧 Token，我们需要让它“忘掉”并使用新的。
+
+**最简单的图形界面做法（推荐）：**
+
+1. 按下 Mac 的 `Command + 空格` 调出聚焦搜索。
+    
+2. 输入 **钥匙串访问** (或者 **Keychain Access**) 并回车打开。
+    
+3. 在右上角的搜索框里输入 `github.com`。
+    
+4. 在搜索结果中，找到种类为“互联网密码” (Internet password) 的 `github.com` 条目。
+    
+5. **右键点击它 -> 选择“删除”**。（别担心，这只是删除了本地保存的密码）。
+    
+
+### 第三步：重新推送！
+
+回到你的终端，再次执行推送命令：
+```
+#### 解决
+```
+**1. 临时禁用密码记忆功能（拔掉钥匙串的网线）：**
+
+Bash
+
+```
+git config credential.helper ""
+```
+
+**2. 再次发起推送：**
+
+Bash
+
+```
+git push -u origin main
+```
+
+> _这一次，因为 Git 失去了记忆，它**100%** 会在终端里弹出 `Username for 'https://github.com':` 和 `Password for 'https://...':` 的提示。_ _请手动输入用户名 `nanfengovo`，并粘贴你**确认勾选了 `workflow` 权限的新 Token** 作为密码（粘贴时屏幕不显示字符，直接回车即可）。_
+> 
+> github token
+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
+
+
+**3. 推送成功后，恢复密码记忆功能：** 等你看到代码成功推送到云端后，再执行下面这行命令，让 Mac 记住你这次输入的新 Token，以后就不用每次都输了：
+
+Bash
+
+```
+git config credential.helper osxkeychain
+```
+```
+
+
 # 仓库二：极客架构派 (ASP.NET Core + React 手搓)
 ## 仓库二设计：
-#### 系统架构图
+### 系统架构图
 ![[Pasted image 20260524133008.png]]
+### UI设计图
+![[Pasted image 20260529223008.png]]
+![[Pasted image 20260529223039.png]]
+![[Pasted image 20260529223436.png]]
+![[Pasted image 20260529222044.png]]
 
+![[Pasted image 20260529224700.png]]
+![[Pasted image 20260529232317.png]]
+
+![[Pasted image 20260528145941.png]]
+![[Pasted image 20260528145950.png]]
+![[Pasted image 20260528145959.png]]
+![[Pasted image 20260528150007.png]]
+![[Pasted image 20260528150025.png]]
+![[Pasted image 20260528150034.png]]
+![[Pasted image 20260528150043.png]]
+![[Pasted image 20260528150053.png]]
+![[Pasted image 20260528150100.png]]
+
+## 仓库二设计
+### 后端项目搭建
+#### 安装aspire来快速启动数据库，前后端
+> sudo dotnet workload install aspire
+#### 创建后端项目
+```bash
+feng@nanfengdeMacBook-Pro DDD+react % mkdir RCS_API
+
+feng@nanfengdeMacBook-Pro DDD+react % mkdir RCS_React
+
+feng@nanfengdeMacBook-Pro DDD+react % cd RCS_API        
+
+feng@nanfengdeMacBook-Pro RCS_API % dotnet new sln -n RCS_API
+
+已成功创建模板“解决方案文件”。
+feng@nanfengdeMacBook-Pro RCS_API %
+```
+
+#### 引入Aspire
+```bash
+创建并添加 Aspire 核心的 AppHost
+dotnet new aspire-apphost -n RCS.AppHost
+dotnet sln add RCS.AppHost
+创建并添加你的 Web API 项目
+dotnet new webapi -n RCS.Api
+dotnet sln add RCS.Api
+```
+#### 根据架构图给Aspire项目引入需要的东西
+```bash
+cd RCS.AppHost
+dotnet add package Aspire.Hosting.PostgreSQL
+dotnet add package Aspire.Hosting.Redis
+dotnet add package Aspire.Hosting.MongoDB
+dotnet add package Aspire.Hosting.RabbitMQ
+```
+
+#### 开始编排
+打开 `RCS.AppHost/AppHost.cs`，替换为以下代码。这就是用 C# 替代 `docker-compose.yml` 的极致优雅：
+```c#
+var builder = DistributedApplication.CreateBuilder(args);
+
+  
+
+//1. 引入业务关系型数据库（PostgreSQL) + PgAdmin可视化工具
+
+var postgres = builder.AddPostgres("postgres-server")
+
+.WithPgAdmin()
+
+.AddDatabase("RcsCoreDb");
+
+  
+
+// 2. 高频状态缓存 (Redis) + RedisInsight 可视化工具
+
+var redis = builder.AddRedis("redis-cache")
+
+.WithRedisInsight();
+
+  
+
+// 3. 非结构化/日志/AI Prompt 存储 (MongoDB) + MongoExpress 可视化工具
+
+var mongo = builder.AddMongoDB("mongodb-server")
+
+.WithMongoExpress()
+
+.AddDatabase("RcsLogDb");
+
+  
+
+// 4. 事件总线与死信队列 (RabbitMQ) + 自带的 Management UI
+
+var rabbitmq = builder.AddRabbitMQ("event-bus")
+
+.WithManagementPlugin();
+
+  
+
+// 5. 注册你的 Web API，并把四大金刚的连接字符串自动注入进去！
+
+var apiService = builder.AddProject<Projects.RCS_Api>("rcs-api")
+
+.WithReference(postgres)
+
+.WithReference(redis)
+
+.WithReference(mongo)
+
+.WithReference(rabbitmq);
+
+  
+
+builder.Build().Run();
+```
+#### 搭建后端架构
+```bash
+# 1. 创建 核心层 (Core Layer) - 纯净无依赖
+dotnet new classlib -n RCS.Core
+
+# 2. 创建 应用层 (Application Layer) - CQRS 与业务编排
+dotnet new classlib -n RCS.Application
+
+# 3. 创建 基础设施层 (Infrastructure Layer) - EF Core, Redis, MQ 的具体实现
+dotnet new classlib -n RCS.Infrastructure
+
+# 4. 把它们全部加到解决方案里
+dotnet sln add RCS.Core RCS.Application RCS.Infrastructure
+```
+
+```bash
+# Application 依赖 Core
+dotnet add RCS.Application/RCS.Application.csproj reference RCS.Core/RCS.Core.csproj
+
+# Infrastructure 依赖 Application 和 Core
+dotnet add RCS.Infrastructure/RCS.Infrastructure.csproj reference RCS.Application/RCS.Application.csproj
+dotnet add RCS.Infrastructure/RCS.Infrastructure.csproj reference RCS.Core/RCS.Core.csproj
+
+# Api 作为最外层的启动入口，需要组合所有东西
+dotnet add RCS.Api/RCS.Api.csproj reference RCS.Application/RCS.Application.csproj
+dotnet add RCS.Api/RCS.Api.csproj reference RCS.Infrastructure/RCS.Infrastructure.csproj
+```
+
+#### DevOps
+##### 第一步：仓库初始化与 `.gitignore` 防御
+```bash
+# 1. 初始化 Git 仓库
+git init
+
+# 2. 自动生成 .NET 专用的忽略文件
+dotnet new gitignore
+
+# 3. 如果你打算在这个大仓库里放 React 前端，顺手把 Node 的忽略也加上
+echo "node_modules/" >> .gitignore
+echo ".env.local" >> .gitignore
+```
+##### 第二步：引入 Conventional Commits (约定式提交规范)
+在多人协作或大型开源项目中，写“更新了代码”、“修复了bug”这种废话提交是绝对的大忌。我们需要采用目前全球最通用的 **Angular 提交规范**。
+
+**规范格式：** `<type>(<scope>): <subject>`
+
+**常用的 Type（类型）：**
+
+- `feat`: 新功能 (Feature)
+    
+- `fix`: 修复 Bug
+    
+- `docs`: 只是修改了文档 (如 README.md)
+    
+- `style`: 代码格式调整 (不影响逻辑，如删掉多余空格、格式化代码)
+    
+- `refactor`: 代码重构 (既不是新增功能，也不是修复 Bug)
+    
+- `test`: 补充或修改测试用例
+    
+- `chore`: 杂项 (如更新依赖包、配置 CI 流水线)
+    
+
+**实战举例 (未来你的提交记录应该是这样的)：**
+- `feat(core): 新增 Location 实体与状态枚举`
+    
+- `chore(ci): 配置 GitHub Actions 自动化编译流水线`
+    
+- `refactor(api): 优化依赖注入模块的注册逻辑`
+##### 第三步 ：本地提交前的编译检查 (Pre-commit Hook)
+
+```
+#### 第一步：手动初始化（绕过 -y）
+
+在终端里输入（不要带 `-y`）：
+
+Bash
+
+npm init
+
+#### 第二步：只改名字，其他一路回车
+
+敲下回车后，终端会一行一行问你问题。
+
+1. **第一行 `package name: (DDD+react)`:** 这里你输入一个全小写的、没有特殊符号的名字，比如：
+    
+    Plaintext
+    
+    ```
+    rcs-workspace
+    ```
+    
+    （输入完按回车）。
+    
+2. 接下来的所有问题（version, description, entry point 等等），**直接一路狂按回车**跳过即可。
+    
+3. 最后问你 `Is this OK? (yes)`，再按一次回车。
+    
+
+搞定！现在你的根目录下已经成功生成了 `package.json` 文件了。
+```
+
+安装Husky
+```bash
+# 安装 Husky
+npm install husky --save-dev
+
+# 启用 Git hooks
+npx husky init
+```
+
+配置“提交前拦截脚本”
+```bash
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "⏳ [RCS Pre-commit] 正在执行本地提交前检查..."
+npm run check-commit || {
+    echo "❌ 警告：本地代码编译失败，已拦截 commit 操作！"
+    exit 1
+}
+```
+配置 Pre-push (推送前拦截)
+```bash
+echo "npm run check-push" > .husky/pre-push
+```
+修改package.json
+```json
+{
+
+"name": "rcs-workspace",
+
+"version": "1.0.0",
+
+"description": "全栈工作区",
+
+"scripts": {
+
+"test": "echo \"Error: no test specified\" && exit 1",
+
+"check-commit": "dotnet build RCS_Warehouse2.sln --no-restore --nologo",
+
+"check-push": "echo '⏳ [RCS Pre-push] 正在执行终极防线检查...' && dotnet build RCS_Warehouse2.sln --no-restore --nologo"
+
+},
+
+"devDependencies": {
+
+"husky": "^9.0.11"
+
+}
+
+}
+```
+
+
+##### 第四步：配置持续集成 (CI - 自动化流水线)
+```bash
+# 1. 创建 GitHub Actions 所需的隐藏目录
+mkdir -p .github/workflows
+
+# 2. 创建并打开 CI 配置文件
+touch .github/workflows/dotnet-ci.yml
+```
+在dotnet-ci.yml里写
+```yaml
+name: RCS Fullstack CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  backend-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET 10
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+        
+    # 直接在根目录执行 restore 和 build，它会自动找到 RCS_API.slnx
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build Backend
+      run: dotnet build --no-restore --configuration Release
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./RCS_React # 前端目录在这里
+        
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install dependencies
+      run: npm ci
+        
+    - name: Build Frontend
+      run: npm run build
+```
 
