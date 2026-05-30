@@ -1309,6 +1309,39 @@ git config credential.helper osxkeychain
 ## 仓库二设计：
 ### 系统架构图
 ![[Pasted image 20260524133008.png]]
+📦 RCS_API (极客架构解决方案)
+ ┣ 📂 RCS.Core (最内层：核心业务规则)
+ │  ┣ 📂 Modules
+ │  │  ┣ 📂 Wms (仓储模块)
+ │  │  │  ┣ 📂 Entities      <-- Location, Inventory 实体放这里
+ │  │  │  ┣ 📂 Enums         <-- LocationStatus 放这里
+ │  │  │  ┗ 📂 Repositories  <-- ILocationRepository 接口放这里
+ │  │  ┗ 📂 Dispatch (调度模块)
+ │  │     ┣ 📂 Entities      <-- AGVTask, Robot 实体放这里
+ │  │     ┗ 📂 ValueObjects  <-- 坐标点等值对象放这里
+ │  ┗ 📜 RCS.Core.csproj
+ │
+ ┣ 📂 RCS.Application (应用层：CQRS 业务编排)
+ │  ┣ 📂 Modules
+ │  │  ┣ 📂 Wms
+ │  │  │  ┣ 📂 Commands      <-- LockLocationCommand
+ │  │  │  ┗ 📂 Queries       <-- GetLocationListQuery
+ │  │  ┗ 📂 Dispatch
+ │  │     ┗ 📂 EventHandlers <-- 监听WMS发来的事件进行调度
+ │  ┗ 📜 RCS.Application.csproj
+ │
+ ┣ 📂 RCS.Infrastructure (基础设施层：只做技术实现)
+ │  ┣ 📂 Persistence
+ │  │  ┣ 📂 EntityFramework
+ │  │  │  ┣ 📂 Configurations <-- 各个模块的 FluentAPI 映射
+ │  │  │  ┗ 📜 RcsDbContext.cs  <-- 统一的数据库上下文
+ │  ┗ 📜 RCS.Infrastructure.csproj
+ │
+ ┗ 📂 RCS.Api (展示层：极简入口)
+    ┣ 📂 Controllers
+    │  ┣ 📂 Wms              <-- LocationController
+    │  ┗ 📂 Dispatch         <-- TaskController
+    ┗ 📜 Program.cs
 ### UI设计图
 ![[Pasted image 20260529223008.png]]
 ![[Pasted image 20260529223039.png]]
@@ -1450,6 +1483,18 @@ dotnet add RCS.Infrastructure/RCS.Infrastructure.csproj reference RCS.Core/RCS.C
 dotnet add RCS.Api/RCS.Api.csproj reference RCS.Application/RCS.Application.csproj
 dotnet add RCS.Api/RCS.Api.csproj reference RCS.Infrastructure/RCS.Infrastructure.csproj
 ```
+搭建基础设施层
+安装 EF Core 核心包
+dotnet add RCS_API/RCS.Infrastructure/RCS.Infrastructure.csproj package Microsoft.EntityFrameworkCore
+安装 PostgreSQL 数据库驱动引擎
+```
+dotnet add RCS_API/RCS.Infrastructure/RCS.Infrastructure.csproj package Npgsql.EntityFrameworkCore.PostgreSQL
+```
+
+改造API层
+由于dotnet 10没有原生支持swagger 我们也换一个方案
+安装 Scalar UI
+dotnet add RCS_API/RCS.Api/RCS.Api.csproj package Scalar.AspNetCore
 
 #### DevOps
 ##### 第一步：仓库初始化与 `.gitignore` 防御
